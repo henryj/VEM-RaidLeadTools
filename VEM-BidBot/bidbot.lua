@@ -46,7 +46,7 @@ local settings = default_settings
 
 local L = VEM_BidBot_Translations
 
-local revision = ("$Revision: 112 $"):sub(12, -3)
+local revision = ("$Revision: 118 $"):sub(12, -3)
 
 local BidBot_Queue = {}			-- items pending
 local BidBot_Biddings = {}		-- current bids
@@ -61,6 +61,7 @@ local AuctionEnd
 local StartBidding
 local DoInjectToDKPSystem
 local sendchatmsg
+local myname = UnitName("player")
 
 local function addDefaultOptions(t1, t2)
 	for i, v in pairs(t2) do
@@ -87,7 +88,7 @@ do
 			checkclients:SetNormalFontObject(GameFontNormalSmall)
 			checkclients:SetHighlightFontObject(GameFontNormalSmall)
 			checkclients:SetScript("OnClick", function(self) 
-				if VEM:IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+				if IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then
 					SendAddonMessage("VEM_BidBot", "showversion!", "RAID")
 				else
 					VEM:AddMsg(L.Local_NoRaid)
@@ -111,7 +112,7 @@ do
 			enabled:SetPoint("TOPLEFT", area.frame, "TOPLEFT", 10, -10)
 			enabled:SetScript("OnShow", function(self) self:SetChecked(settings.enabled) end)
 			enabled:SetScript("OnClick", function(self) 
-				if VEM:IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then
+				if IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then
 					if settings.enabled then
 						SendAddonMessage("VEM_BidBot", "bye!", "RAID")
 					else
@@ -370,9 +371,9 @@ function StartBidding()
 
 		
 		if settings.withraidwarn then
-				SendChatMessage(L.Prefix..L.Message_StartRaidWarn:format(ItemLink, UnitName("player")), "RAID_WARNING")
+				SendChatMessage(L.Prefix..L.Message_StartRaidWarn:format(ItemLink, myname), "RAID_WARNING")
 		end
-		sendchatmsg(L.Prefix..L.Message_StartBidding:format(ItemLink, UnitName("player"), settings.minGebot))
+		sendchatmsg(L.Prefix..L.Message_StartBidding:format(ItemLink, myname, settings.minGebot))
 		sendchatmsg(L.Prefix..L.Message_DoBidding:format(ItemLink, settings.duration))
 		
 		VEM:Schedule((settings.duration / 6) * 5, function() 
@@ -462,9 +463,7 @@ do
 	local bidbot_clients = {}
 
 	local function amIactive()
-		if not VEM:IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then return false end
-	
-		local myname = UnitName("player")
+		if not IsInRaid() and IsInGroup(LE_PARTY_CATEGORY_HOME) then return false end
 	
 		for k,v in pairs(bidbot_clients) do
 			if VEM:GetRaidRank(k) >= 2 then	-- raidleader gefunden
@@ -487,11 +486,11 @@ do
 	end
 
 	local function OnMsgRecived(msg, name, nocheck)
-		if settings.enabled and VEM:IsInRaid() and msg and string.find(string.lower(msg), "^!bid ") then
+		if settings.enabled and IsInRaid() and msg and string.find(string.lower(msg), "^!bid ") then
 			if not nocheck and not amIactive() then
 				return false
 			end
-			if name ~= UnitName("player") and VEM:GetRaidUnitId(name) == "none" then
+			if name ~= myname and not VEM:GetRaidUnitId(name) then
 				-- users from outside can't start a Bid round. (like spaming GuildMates ^^)
 				return false
 			end
@@ -538,7 +537,7 @@ do
 			addDefaultOptions(settings, default_settings)
 
 			VEM:RegisterCallback("raidJoin", function(event, name)
-				if settings.enabled and name and name == UnitName("player") then 
+				if settings.enabled and name and name == myname then 
 					SendAddonMessage("VEM_BidBot", "Hi!", "WHISPER", name)
 				end 
 			end)
@@ -591,9 +590,9 @@ do
 				elseif msg:sub(0, 9) == "version: " then
 					VEM:AddMsg( L.Local_Version:format(sender, msg:sub(9)) )
 
-				elseif msg:sub(0, 5) == "ITEM:" and sender ~= UnitName("player") then
-					if VEM:GetRaidUnitId(sender) ~= "none" and not channel == "RAID" then return end
-					if VEM:GetRaidUnitId(sender) == "none" and not channel == "GUILD" then return end
+				elseif msg:sub(0, 5) == "ITEM:" and sender ~= myname then
+					if VEM:GetRaidUnitId(sender) and not channel == "RAID" then return end
+					if not VEM:GetRaidUnitId(sender) and not channel == "GUILD" then return end
 					local _, itemid, dkp, savedbids = strsplit(":",msg)
 					local Itembid = {
 						time = time(), 
